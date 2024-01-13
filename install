@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+
+config=$HOME/.zshrc
+files=(sh/*)
+
+response=()
+counter=0
+
+echo
+for file in sh/*; do
+	read -rp "Source ${file}? [Y/n]: " input
+
+	if [[ -z "$input" || "$input" =~ ^[Yy]$ ]]; then
+		((counter += 1))
+		response+=(1)
+	else
+		response+=(0)
+	fi
+done
+
+if [[ "$counter" -gt 0 ]]; then
+	{
+		echo -e "\n# ====== Custom sh files ======"
+		for i in "${!files[@]}"; do
+			if [[ "${response[$i]}" -eq 1 ]]; then
+				filepath="$(realpath "${files[$i]}")"
+				echo "source \$HOME${filepath#"$HOME"}"
+			fi
+		done
+		echo -e "# ============================="
+	} >>"$config"
+fi
+
+echo -e "\nSourced $([[ "$counter" -eq 0 ]] && echo -n '\033[0;31m' || echo -n '\033[0;32m')$counter\033[0m files"
+echo -e "\nRun \"source $config\" to refresh shell"
