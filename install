@@ -1,35 +1,142 @@
 #!/usr/bin/env bash
 
-config=$HOME/.zshrc
-files=(sh/*)
+####################################################################
+# Setting glob settings
 
-response=()
-counter=0
+shopt -s nullglob dotglob
 
-echo
-for file in sh/*; do
-	read -rp "Source ${file}? [Y/n]: " input
+####################################################################
+# Flags check
 
-	if [[ -z "$input" || "$input" =~ ^[Yy]$ ]]; then
-		((counter += 1))
-		response+=(1)
+YES=0
+
+for arg; do
+	case $arg in
+	yes)
+		YES=1
+		;;
+
+	esac
+done
+
+####################################################################
+# Color set
+
+# Reset
+Color_Off=''
+
+# Regular Colors
+Red=''
+Green=''
+
+# Icons
+tick=""
+
+if [[ -t 1 ]]; then
+	# Reset
+	Color_Off='\033[0m' # Text Reset
+
+	# Regular Colors
+	Red='\033[0;31m'
+	Green='\033[0;32m'
+
+	# Icons
+	tick="\xE2\x9C\x94"
+fi
+
+break_line() {
+	if [[ $YES -eq 0 ]]; then
+		echo
+	fi
+}
+
+ask() {
+	if [[ $YES -eq 0 ]]; then
+		if [[ "$1" == "-n" ]]; then
+			echo
+			shift 1
+		fi
+
+		symbol_suffix="  "
+
+		echo -ne "${Red}?${Color_Off}${symbol_suffix}$* [Y/n]: "
+		read -r input </dev/tty
+
+		echo -ne "\033[1A\033[K\r"
+		echo -ne "${Green}${tick}${Color_Off}${symbol_suffix}$* [Y/n]: "
+		if [[ -z "$input" || "$input" =~ ^[Yy]$ ]]; then
+			echo -e "${Green}Yes${Color_Off}"
+			return 0
+		else
+			echo -e "${Red}No${Color_Off}"
+			return 1
+		fi
+	fi
+}
+
+zshrc=$HOME/.zshrc
+
+# ===== Shelll Scripts =====
+
+script_files=(script/*)
+
+script_response=()
+script_counter=0
+
+break_line
+for file in "${script_files[@]}"; do
+	if ask "Source ${file} ?"; then
+		((script_counter += 1))
+		script_response+=(1)
 	else
-		response+=(0)
+		script_response+=(0)
 	fi
 done
 
-if [[ "$counter" -gt 0 ]]; then
+# ===== Configurations =====
+config_files=(config/*)
+
+config_response=()
+config_counter=0
+
+break_line
+for file in "${config_files[@]}"; do
+	if ask "Link ${file##*/} ?"; then
+		((config_counter += 1))
+		config_response+=(1)
+	else
+		config_response+=(0)
+	fi
+done
+
+# ===== Shelll Scripts =====
+
+if [[ "$script_counter" -gt 0 ]]; then
 	{
 		echo -e "\n# ====== Custom sh files ======"
-		for i in "${!files[@]}"; do
-			if [[ "${response[$i]}" -eq 1 ]]; then
-				filepath="$(realpath "${files[$i]}")"
+		for i in "${!script_files[@]}"; do
+			if [[ "${script_response[$i]}" -eq 1 ]]; then
+				filepath="$(realpath "${script_files[$i]}")"
 				echo "source \$HOME${filepath#"$HOME"}"
 			fi
 		done
 		echo -e "# ============================="
-	} >>"$config"
+	} >>"$zshrc"
 fi
 
-echo -e "\nSourced $([[ "$counter" -eq 0 ]] && echo -n '\033[0;31m' || echo -n '\033[0;32m')$counter\033[0m files"
-echo -e "\nRun \"source $config\" to refresh shell"
+# ===== Configurations =====
+
+break_line
+if [[ "$config_counter" -gt 0 ]]; then
+	for i in "${!config_files[@]}"; do
+		if [[ "${config_response[$i]}" -eq 1 ]]; then
+			filepath="$(realpath "${config_files[$i]}")"
+			ln -s "$filepath" "$HOME/${config_files[$i]##*/}"
+		fi
+	done
+
+fi
+
+echo -e "\nSourced $([[ "$script_counter" -eq 0 ]] && echo -n '\033[0;31m' || echo -n '\033[0;32m')$script_counter\033[0m files"
+echo -e "Linked $([[ "$config_counter" -eq 0 ]] && echo -n '\033[0;31m' || echo -n '\033[0;32m')$config_counter\033[0m files"
+echo -e "\nRun ${Green}\"source $zshrc\"${Color_Off} to refresh shell"

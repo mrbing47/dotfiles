@@ -26,3 +26,9 @@ alias myip="ipconfig getifaddr en0"
 
 # shortcut to clear the shell
 alias cls=clear
+
+## .spaceshiprc edit
+alias spedit="code ~/.spaceshiprc.zsh"
+
+# omz reload
+alias omr="omz reload"
