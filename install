@@ -9,11 +9,19 @@ shopt -s nullglob dotglob
 # Flags check
 
 YES=0
+IGNORE_LINK=0
+IGNORE_SCRIPT=0
 
 for arg; do
 	case $arg in
 	yes)
 		YES=1
+		;;
+	iglink)
+		IGNORE_LINK=1
+		;;
+	igscript)
+		IGNORE_SCRIPT=1
 		;;
 
 	esac
@@ -74,40 +82,60 @@ ask() {
 	fi
 }
 
+getfilename() {
+	echo "${1##*/}"
+}
+
 zshrc=$HOME/.zshrc
 
 # ===== Shelll Scripts =====
 
-script_files=(script/*)
-
 script_response=()
 script_counter=0
 
-break_line
-for file in "${script_files[@]}"; do
-	if ask "Source ${file} ?"; then
-		((script_counter += 1))
-		script_response+=(1)
-	else
-		script_response+=(0)
-	fi
-done
+if [[ $IGNORE_SCRIPT -eq 0 ]]; then
+	script_files=(script/*)
+
+	break_line
+	for file in "${script_files[@]}"; do
+		if ask "Source ${file} ?"; then
+			((script_counter += 1))
+			script_response+=(1)
+		else
+			script_response+=(0)
+		fi
+	done
+fi
 
 # ===== Configurations =====
-config_files=(config/*)
+temp_config_files=(config/*)
+config_files=()
 
 config_response=()
 config_counter=0
 
-break_line
-for file in "${config_files[@]}"; do
-	if ask "Link ${file##*/} ?"; then
-		((config_counter += 1))
-		config_response+=(1)
-	else
-		config_response+=(0)
-	fi
-done
+if [[ $IGNORE_LINK -eq 0 ]]; then
+	# Filtering out all the existing symlinks
+	break_line
+	for file in "${temp_config_files[@]}"; do
+		if [[ ! -L "$HOME/${file##*/}" ]]; then
+			config_files+=("$file")
+		else
+			echo -e "Link for ${Red}$(getfilename "$file")${Color_Off} already exists"
+		fi
+
+	done
+
+	break_line
+	for file in "${config_files[@]}"; do
+		if ask "Link ${file##*/} ?"; then
+			((config_counter += 1))
+			config_response+=(1)
+		else
+			config_response+=(0)
+		fi
+	done
+fi
 
 # ===== Shelll Scripts =====
 
@@ -126,17 +154,17 @@ fi
 
 # ===== Configurations =====
 
-break_line
 if [[ "$config_counter" -gt 0 ]]; then
 	for i in "${!config_files[@]}"; do
 		if [[ "${config_response[$i]}" -eq 1 ]]; then
 			filepath="$(realpath "${config_files[$i]}")"
-			ln -s "$filepath" "$HOME/${config_files[$i]##*/}"
+			ln -s "$filepath" "$HOME/${config_files[$i]##*/}" ||
+				echo "Unable to create link for ${Red}$file${Color_Off}"
 		fi
 	done
 
 fi
 
-echo -e "\nSourced $([[ "$script_counter" -eq 0 ]] && echo -n '\033[0;31m' || echo -n '\033[0;32m')$script_counter\033[0m files"
+echo -e "Sourced $([[ "$script_counter" -eq 0 ]] && echo -n '\033[0;31m' || echo -n '\033[0;32m')$script_counter\033[0m files"
 echo -e "Linked $([[ "$config_counter" -eq 0 ]] && echo -n '\033[0;31m' || echo -n '\033[0;32m')$config_counter\033[0m files"
 echo -e "\nRun ${Green}\"source $zshrc\"${Color_Off} to refresh shell"
