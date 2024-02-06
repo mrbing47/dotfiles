@@ -44,6 +44,9 @@ Yellow=''
 
 # Icons
 Tick=""
+Cross=""
+Question=""
+Symbol_Suffix=""
 
 # Cursor Movement
 Cursor_Up=""
@@ -60,6 +63,9 @@ if [[ -t 1 ]]; then
 
 	# Icons
 	Tick="\xE2\x9C\x94"
+	Cross="\u2715"
+	Question="?"
+	Symbol_Suffix="  "
 
 	# Cursor Movement
 	Cursor_Up="\033[1A"
@@ -92,13 +98,11 @@ ask() {
 			shift 1
 		fi
 
-		symbol_suffix="  "
-
-		echo -ne "$(red "?")${symbol_suffix}$* [Y/n]: "
+		echo -ne "$(red "$Question")${Symbol_Suffix}$* [Y/n]: "
 		read -r input </dev/tty
 
 		echo -ne "${Cursor_Up}${Clear_Line}\r"
-		echo -ne "$(green "$Tick")${symbol_suffix}$* [Y/n]: "
+		echo -ne "$(green "$Tick")${Symbol_Suffix}$* [Y/n]: "
 		if [[ -z "$input" || "$input" =~ ^[Yy]$ ]]; then
 			echo -e "$(green "Yes")"
 			return 0
@@ -107,6 +111,10 @@ ask() {
 			return 1
 		fi
 	fi
+}
+
+exists() {
+	echo -e "$(red "$Cross")${Symbol_Suffix}$1"
 }
 
 getfilename() {
@@ -137,7 +145,7 @@ if [[ $IGNORE_SCRIPT -eq 0 ]]; then
 		filepath=$(realpath "$file")
 
 		if echo "$sourced_files" | grep "^${filepath}$" >/dev/null; then
-			echo -e "File $(red "$filename") is already sourced."
+			exists "File $(yellow "$filename") is already sourced."
 
 		elif ask "Source $filename ?"; then
 			((script_counter += 1))
@@ -162,7 +170,7 @@ if [[ $IGNORE_LINK -eq 0 ]]; then
 		filename=$(getfilename "$file")
 
 		if [[ -L "$HOME/$filename" ]]; then
-			echo -e "Link for $(red "$filename") already exists"
+			exists "Link for $(yellow "$filename") already exists"
 
 		elif ask "Link $filename ?"; then
 			((config_counter += 1))
