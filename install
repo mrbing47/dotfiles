@@ -11,6 +11,7 @@ shopt -s nullglob dotglob
 YES=0
 IGNORE_LINK=0
 IGNORE_SCRIPT=0
+RESET_SOURCE=0
 
 for arg; do
 	case $arg in
@@ -22,6 +23,9 @@ for arg; do
 		;;
 	igscript)
 		IGNORE_SCRIPT=1
+		;;
+	reset)
+		RESET_SOURCE=1
 		;;
 
 	esac
@@ -36,9 +40,14 @@ Color_Off=''
 # Regular Colors
 Red=''
 Green=''
+Yellow=''
 
 # Icons
-tick=""
+Tick=""
+
+# Cursor Movement
+Cursor_Up=""
+Clear_Line=""
 
 if [[ -t 1 ]]; then
 	# Reset
@@ -47,10 +56,28 @@ if [[ -t 1 ]]; then
 	# Regular Colors
 	Red='\033[0;31m'
 	Green='\033[0;32m'
+	Yellow='\033[0;33m'
 
 	# Icons
-	tick="\xE2\x9C\x94"
+	Tick="\xE2\x9C\x94"
+
+	# Cursor Movement
+	Cursor_Up="\033[1A"
+	Clear_Line="\033[K"
+
 fi
+
+red() {
+	echo -e "${Red}${1}${Color_Off}"
+}
+
+green() {
+	echo -e "${Green}${1}${Color_Off}"
+}
+
+yellow() {
+	echo -e "${Yellow}${1}${Color_Off}"
+}
 
 break_line() {
 	if [[ $YES -eq 0 ]]; then
@@ -67,16 +94,16 @@ ask() {
 
 		symbol_suffix="  "
 
-		echo -ne "${Red}?${Color_Off}${symbol_suffix}$* [Y/n]: "
+		echo -ne "$(red "?")${symbol_suffix}$* [Y/n]: "
 		read -r input </dev/tty
 
-		echo -ne "\033[1A\033[K\r"
-		echo -ne "${Green}${tick}${Color_Off}${symbol_suffix}$* [Y/n]: "
+		echo -ne "${Cursor_Up}${Clear_Line}\r"
+		echo -ne "$(green "$Tick")${symbol_suffix}$* [Y/n]: "
 		if [[ -z "$input" || "$input" =~ ^[Yy]$ ]]; then
-			echo -e "${Green}Yes${Color_Off}"
+			echo -e "$(green "Yes")"
 			return 0
 		else
-			echo -e "${Red}No${Color_Off}"
+			echo -e "$(red "No")"
 			return 1
 		fi
 	fi
@@ -88,8 +115,16 @@ getfilename() {
 
 zshrc=$HOME/.zshrc
 
-# ===== Shelll Scripts =====
+# ===== Creating .sourced file =====
+sourced=$HOME/.shell.source
 
+if [[ ! -e $sourced ]]; then
+	touch "$sourced"
+fi
+
+sourced_files=$([[ $RESET_SOURCE -eq 0 ]] && cat "$sourced" || echo "")
+
+# ===== Shelll Scripts =====
 script_response=()
 script_counter=0
 
@@ -98,9 +133,16 @@ if [[ $IGNORE_SCRIPT -eq 0 ]]; then
 
 	break_line
 	for file in "${script_files[@]}"; do
-		if ask "Source ${file} ?"; then
+		filename=$(getfilename "$file")
+		filepath=$(realpath "$file")
+
+		if echo "$sourced_files" | grep "^${filepath}$" >/dev/null; then
+			echo -e "File $(red "$filename") is already sourced."
+
+		elif ask "Source $filename ?"; then
 			((script_counter += 1))
 			script_response+=(1)
+
 		else
 			script_response+=(0)
 		fi
@@ -108,8 +150,7 @@ if [[ $IGNORE_SCRIPT -eq 0 ]]; then
 fi
 
 # ===== Configurations =====
-temp_config_files=(config/*)
-config_files=()
+config_files=(config/*)
 
 config_response=()
 config_counter=0
@@ -117,24 +158,26 @@ config_counter=0
 if [[ $IGNORE_LINK -eq 0 ]]; then
 	# Filtering out all the existing symlinks
 	break_line
-	for file in "${temp_config_files[@]}"; do
-		if [[ ! -L "$HOME/${file##*/}" ]]; then
-			config_files+=("$file")
-		else
-			echo -e "Link for ${Red}$(getfilename "$file")${Color_Off} already exists"
-		fi
-
-	done
-
-	break_line
 	for file in "${config_files[@]}"; do
-		if ask "Link ${file##*/} ?"; then
+		filename=$(getfilename "$file")
+
+		if [[ -L "$HOME/$filename" ]]; then
+			echo -e "Link for $(red "$filename") already exists"
+
+		elif ask "Link $filename ?"; then
 			((config_counter += 1))
 			config_response+=(1)
+
 		else
 			config_response+=(0)
 		fi
+
 	done
+fi
+
+# ===== Resetting the .shell.source file =====
+if [[ "$RESET_SOURCE" -eq 1 ]]; then
+	: >"$sourced"
 fi
 
 # ===== Shelll Scripts =====
@@ -145,6 +188,7 @@ if [[ "$script_counter" -gt 0 ]]; then
 		for i in "${!script_files[@]}"; do
 			if [[ "${script_response[$i]}" -eq 1 ]]; then
 				filepath="$(realpath "${script_files[$i]}")"
+				echo "${filepath}" >>"$sourced"
 				echo "source \$HOME${filepath#"$HOME"}"
 			fi
 		done
@@ -158,13 +202,33 @@ if [[ "$config_counter" -gt 0 ]]; then
 	for i in "${!config_files[@]}"; do
 		if [[ "${config_response[$i]}" -eq 1 ]]; then
 			filepath="$(realpath "${config_files[$i]}")"
-			ln -s "$filepath" "$HOME/${config_files[$i]##*/}" ||
-				echo "Unable to create link for ${Red}$file${Color_Off}"
+			filename=$(getfilename "${config_files[$i]}")
+
+			ln -s "$filepath" "$HOME/$filename" ||
+				echo "Unable to create link for $(red "$filename")"
 		fi
 	done
 
 fi
 
-echo -e "Sourced $([[ "$script_counter" -eq 0 ]] && echo -n '\033[0;31m' || echo -n '\033[0;32m')$script_counter\033[0m files"
-echo -e "Linked $([[ "$config_counter" -eq 0 ]] && echo -n '\033[0;31m' || echo -n '\033[0;32m')$config_counter\033[0m files"
-echo -e "\nRun ${Green}\"source $zshrc\"${Color_Off} to refresh shell"
+break_line
+
+echo -e "Sourced $(
+	if [[ "$script_counter" -eq 0 ]]; then
+		red $script_counter
+	else
+		green $script_counter
+	fi
+) files"
+
+echo -e "Linked $(
+	if [[ "$config_counter" -eq 0 ]]; then
+		red $config_counter
+	else
+		green $config_counter
+	fi
+) files"
+
+if [[ "$script_counter" -gt 0 || "$config_counter" -gt 0 ]]; then
+	echo -e "\nRun $(green "\"source $zshrc\"") to refresh shell"
+fi
