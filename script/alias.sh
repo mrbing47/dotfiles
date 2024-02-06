@@ -32,3 +32,6 @@ alias spedit="code ~/.spaceshiprc.zsh"
 
 # omz reload
 alias omr="omz reload"
+
+# Python
+alias py="python3.12"
