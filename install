@@ -2,12 +2,10 @@
 
 ####################################################################
 # Setting glob settings
-
 shopt -s nullglob dotglob
 
 ####################################################################
 # Flags check
-
 YES=0
 IGNORE_LINK=0
 IGNORE_SCRIPT=0
@@ -41,12 +39,15 @@ Color_Off=''
 Red=''
 Green=''
 Yellow=''
+Blue=''
+Magenta=''
 
 # Icons
 Tick=""
 Cross=""
 Question=""
 Symbol_Suffix=""
+Exclamation=""
 
 # Cursor Movement
 Cursor_Up=""
@@ -60,12 +61,15 @@ if [[ -t 1 ]]; then
 	Red='\033[0;31m'
 	Green='\033[0;32m'
 	Yellow='\033[0;33m'
+	Blue='\033[0;34m'
+	Magenta='\033[0;35m'
 
 	# Icons
 	Tick="\xE2\x9C\x94"
 	Cross="\u2715"
 	Question="?"
 	Symbol_Suffix="  "
+	Exclamation="!"
 
 	# Cursor Movement
 	Cursor_Up="\033[1A"
@@ -73,22 +77,36 @@ if [[ -t 1 ]]; then
 
 fi
 
+error() {
+	echo -e "$(red "ERROR:")${Symbol_Suffix}$*" >&2
+	exit 1
+}
+
+colorify() {
+	if [[ -z $1 ]]; then
+		error "${Red}Please provide a color to colorify the text.${Color_Off}"
+	fi
+	echo -ne "${1}${*:2}${Color_Off}"
+}
+
 red() {
-	echo -e "${Red}${1}${Color_Off}"
+	colorify "$Red" "$@"
 }
 
 green() {
-	echo -e "${Green}${1}${Color_Off}"
+	colorify "$Green" "$@"
 }
 
 yellow() {
-	echo -e "${Yellow}${1}${Color_Off}"
+	colorify "$Yellow" "$@"
 }
 
-break_line() {
-	if [[ $YES -eq 0 ]]; then
-		echo
-	fi
+blue() {
+	colorify "$Blue" "$@"
+}
+
+magenta() {
+	colorify "$Magenta" "$@"
 }
 
 ask() {
@@ -98,23 +116,31 @@ ask() {
 			shift 1
 		fi
 
-		echo -ne "$(red "$Question")${Symbol_Suffix}$* [Y/n]: "
+		echo -ne "$(magenta "$Question")${Symbol_Suffix}$* [Y/n]: "
 		read -r input </dev/tty
 
 		echo -ne "${Cursor_Up}${Clear_Line}\r"
-		echo -ne "$(green "$Tick")${Symbol_Suffix}$* [Y/n]: "
 		if [[ -z "$input" || "$input" =~ ^[Yy]$ ]]; then
+			echo -ne "$(green "$Tick")${Symbol_Suffix}$* [Y/n]: "
 			echo -e "$(green "Yes")"
 			return 0
 		else
+			echo -ne "$(red "$Cross")${Symbol_Suffix}$* [Y/n]: "
 			echo -e "$(red "No")"
 			return 1
 		fi
+	else
+		return 0
 	fi
 }
 
 exists() {
-	echo -e "$(red "$Cross")${Symbol_Suffix}$1"
+	if [[ "$1" == "-n" ]]; then
+		echo
+		shift 1
+	fi
+
+	echo -e "$(blue "$Exclamation")${Symbol_Suffix}$1"
 }
 
 getfilename() {
@@ -124,7 +150,7 @@ getfilename() {
 zshrc=$HOME/.zshrc
 
 # ===== Creating .sourced file =====
-sourced=$HOME/.shell.source
+sourced=$HOME/.dotfiles.source
 
 if [[ ! -e $sourced ]]; then
 	touch "$sourced"
@@ -139,7 +165,7 @@ script_counter=0
 if [[ $IGNORE_SCRIPT -eq 0 ]]; then
 	script_files=(script/*)
 
-	break_line
+	echo
 	for file in "${script_files[@]}"; do
 		filename=$(getfilename "$file")
 		filepath=$(realpath "$file")
@@ -147,7 +173,7 @@ if [[ $IGNORE_SCRIPT -eq 0 ]]; then
 		if echo "$sourced_files" | grep "^${filepath}$" >/dev/null; then
 			exists "File $(yellow "$filename") is already sourced."
 
-		elif ask "Source $filename ?"; then
+		elif ask "Source $(yellow "$filename") ?"; then
 			((script_counter += 1))
 			script_response+=(1)
 
@@ -165,14 +191,21 @@ config_counter=0
 
 if [[ $IGNORE_LINK -eq 0 ]]; then
 	# Filtering out all the existing symlinks
-	break_line
+	[[ $YES -eq 0 ]] || echo
 	for file in "${config_files[@]}"; do
 		filename=$(getfilename "$file")
 
 		if [[ -L "$HOME/$filename" ]]; then
-			exists "Link for $(yellow "$filename") already exists"
+			[[ $YES -eq 0 ]] &&
+				exists -n "Link for $(yellow "$filename") already exists" ||
+				exists "Updating the link for $(yellow "$filename")"
 
-		elif ask "Link $filename ?"; then
+			if ask "Do you wish to update the link?"; then
+				((config_counter += 1))
+				config_response+=(1)
+			fi
+
+		elif ask "Link $(yellow "$filename") ?"; then
 			((config_counter += 1))
 			config_response+=(1)
 
@@ -183,7 +216,7 @@ if [[ $IGNORE_LINK -eq 0 ]]; then
 	done
 fi
 
-# ===== Resetting the .shell.source file =====
+# ===== Clearing the .dotfiles.source file =====
 if [[ "$RESET_SOURCE" -eq 1 ]]; then
 	: >"$sourced"
 fi
@@ -212,14 +245,14 @@ if [[ "$config_counter" -gt 0 ]]; then
 			filepath="$(realpath "${config_files[$i]}")"
 			filename=$(getfilename "${config_files[$i]}")
 
-			ln -s "$filepath" "$HOME/$filename" ||
+			ln -sfn "$filepath" "$HOME/$filename" ||
 				echo "Unable to create link for $(red "$filename")"
 		fi
 	done
 
 fi
 
-break_line
+echo
 
 echo -e "Sourced $(
 	if [[ "$script_counter" -eq 0 ]]; then
