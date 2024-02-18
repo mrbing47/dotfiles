@@ -35,3 +35,18 @@ alias omr="omz reload"
 
 # Python
 alias py="python3.12"
+
+# Alias for lsd
+alias ls='lsd'
+
+# Alias for lsd long
+alias ll='lsd -l'
+
+# Alias for lsd long tree
+alias lt='lsd --tree'
+
+# Alias for lsd long tree
+alias llt='lsd -l --tree'
+
+# Pip
+alias pip=pip3
