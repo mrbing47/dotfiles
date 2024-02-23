@@ -65,7 +65,7 @@ if [[ -t 1 ]]; then
 	Magenta='\033[0;35m'
 
 	# Icons
-	Tick="\xE2\x9C\x94"
+	Tick="\xe2\x9c\x93"
 	Cross="\u2715"
 	Question="?"
 	Symbol_Suffix="  "

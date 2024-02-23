@@ -50,3 +50,6 @@ alias llt='lsd -l --tree'
 
 # Pip
 alias pip=pip3
+
+# Open vscode in current working directory
+alias chere="code -r ."
