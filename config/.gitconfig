@@ -1,3 +1,5 @@
 [user]
 	email = 34476370+mrbing47@users.noreply.github.com
 	name = Sarthik Garg
+[push]
+	autoSetupRemote = true
